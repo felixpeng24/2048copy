@@ -168,5 +168,407 @@
     <!-- JavaScript code is at the end to allow page to load first -->
     <!-- Game logic is inside the script block below -->
     <!-- It creates the game, adds tiles, handles movement, detects win/loss, and manages animation -->
+     <script>
+        class Game2048 {
+            constructor() {
+                this.board = [];
+                this.score = 0;
+                this.gameWon = false;
+                this.gameOver = false;
+                this.touchStartX = 0;
+                this.touchStartY = 0;
+                this.tileElements = new Map(); // Track tile DOM elements
+                this.previousBoard = []; // Track previous board state for animations
+                
+                this.init();
+                this.setupEventListeners();
+            }
+
+            init() {
+                // Initialize empty 4x4 board
+                this.board = Array(4).fill().map(() => Array(4).fill(0));
+                this.score = 0;
+                this.gameWon = false;
+                this.gameOver = false;
+                this.tileElements.clear();
+                this.previousBoard = [];
+                
+                // Add initial tiles
+                this.addRandomTile();
+                this.addRandomTile();
+                
+                this.updateDisplay();
+                this.hideOverlay();
+            }
+
+            setupEventListeners() {
+                // Keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    if (this.gameOver) return;
+                    
+                    switch(e.key) {
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            this.move('up');
+                            break;
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            this.move('down');
+                            break;
+                        case 'ArrowLeft':
+                            e.preventDefault();
+                            this.move('left');
+                            break;
+                        case 'ArrowRight':
+                            e.preventDefault();
+                            this.move('right');
+                            break;
+                    }
+                });
+
+                // Touch controls for mobile
+                const tilesContainer = document.getElementById('tilesContainer');
+                tilesContainer.addEventListener('touchstart', (e) => {
+                    this.touchStartX = e.touches[0].clientX;
+                    this.touchStartY = e.touches[0].clientY;
+                });
+
+                tilesContainer.addEventListener('touchend', (e) => {
+                    if (this.gameOver) return;
+                    
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const touchEndY = e.changedTouches[0].clientY;
+                    
+                    const deltaX = touchEndX - this.touchStartX;
+                    const deltaY = touchEndY - this.touchStartY;
+                    
+                    const minSwipeDistance = 30;
+                    
+                    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                        if (Math.abs(deltaX) > minSwipeDistance) {
+                            if (deltaX > 0) {
+                                this.move('right');
+                            } else {
+                                this.move('left');
+                            }
+                        }
+                    } else {
+                        if (Math.abs(deltaY) > minSwipeDistance) {
+                            if (deltaY > 0) {
+                                this.move('down');
+                            } else {
+                                this.move('up');
+                            }
+                        }
+                    }
+                });
+
+                // New game button
+                document.getElementById('newGameBtn').addEventListener('click', () => {
+                    this.init();
+                });
+
+                // Overlay button
+                document.getElementById('overlayBtn').addEventListener('click', () => {
+                    this.init();
+                });
+            }
+
+            move(direction) {
+                // Store previous board state for animations
+                this.previousBoard = JSON.parse(JSON.stringify(this.board));
+                let moved = false;
+
+                switch(direction) {
+                    case 'up':
+                        moved = this.moveUp();
+                        break;
+                    case 'down':
+                        moved = this.moveDown();
+                        break;
+                    case 'left':
+                        moved = this.moveLeft();
+                        break;
+                    case 'right':
+                        moved = this.moveRight();
+                        break;
+                }
+
+                if (moved) {
+                    this.animateMove(direction);
+                    setTimeout(() => {
+                        this.addRandomTile();
+                        this.updateDisplay();
+                        this.checkGameState();
+                    }, 150); // Wait for animation to complete
+                }
+            }
+
+            animateMove(direction) {
+                // Create a simple mapping of tile movements
+                const tileMovements = [];
+                
+                // For each tile in the current board
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        const currentValue = this.board[row][col];
+                        if (currentValue !== 0) {
+                            // Find this tile's previous position
+                            let found = false;
+                            for (let prevRow = 0; prevRow < 4 && !found; prevRow++) {
+                                for (let prevCol = 0; prevCol < 4 && !found; prevCol++) {
+                                    if (this.previousBoard[prevRow][prevCol] === currentValue) {
+                                        // Check if this tile element exists
+                                        const tileKey = ${prevRow}-${prevCol}-${currentValue};
+                                        if (this.tileElements.has(tileKey)) {
+                                            // If the tile actually moved
+                                            if (prevRow !== row || prevCol !== col) {
+                                                tileMovements.push({
+                                                    tileKey: tileKey,
+                                                    fromRow: prevRow,
+                                                    fromCol: prevCol,
+                                                    toRow: row,
+                                                    toCol: col,
+                                                    value: currentValue
+                                                });
+                                            }
+                                            found = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Animate each moved tile
+                tileMovements.forEach(movement => {
+                    const tileElement = this.tileElements.get(movement.tileKey);
+                    if (tileElement) {
+                        // Calculate the movement distance
+                        const deltaX = (movement.toCol - movement.fromCol) * 100;
+                        const deltaY = (movement.toRow - movement.fromRow) * 100;
+                        
+                        // Apply the animation
+                        tileElement.classList.add('tile-moving');
+                        tileElement.style.transform = translate(${deltaX}%, ${deltaY}%);
+                        
+                        // Update the tile's key to its new position
+                        const newTileKey = ${movement.toRow}-${movement.toCol}-${movement.value};
+                        this.tileElements.set(newTileKey, tileElement);
+                        this.tileElements.delete(movement.tileKey);
+                    }
+                });
+            }
+
+            moveLeft() {
+                let moved = false;
+                for (let row = 0; row < 4; row++) {
+                    const newRow = this.mergeRow(this.board[row]);
+                    if (JSON.stringify(newRow) !== JSON.stringify(this.board[row])) {
+                        this.board[row] = newRow;
+                        moved = true;
+                    }
+                }
+                return moved;
+            }
+
+            moveRight() {
+                let moved = false;
+                for (let row = 0; row < 4; row++) {
+                    const reversedRow = this.board[row].slice().reverse();
+                    const mergedRow = this.mergeRow(reversedRow);
+                    const newRow = mergedRow.reverse();
+                    if (JSON.stringify(newRow) !== JSON.stringify(this.board[row])) {
+                        this.board[row] = newRow;
+                        moved = true;
+                    }
+                }
+                return moved;
+            }
+
+            moveUp() {
+                let moved = false;
+                for (let col = 0; col < 4; col++) {
+                    const column = this.board.map(row => row[col]);
+                    const mergedColumn = this.mergeRow(column);
+                    if (JSON.stringify(mergedColumn) !== JSON.stringify(column)) {
+                        for (let row = 0; row < 4; row++) {
+                            this.board[row][col] = mergedColumn[row];
+                        }
+                        moved = true;
+                    }
+                }
+                return moved;
+            }
+
+            moveDown() {
+                let moved = false;
+                for (let col = 0; col < 4; col++) {
+                    const column = this.board.map(row => row[col]).reverse();
+                    const mergedColumn = this.mergeRow(column);
+                    const newColumn = mergedColumn.reverse();
+                    if (JSON.stringify(newColumn) !== JSON.stringify(this.board.map(row => row[col]))) {
+                        for (let row = 0; row < 4; row++) {
+                            this.board[row][col] = newColumn[row];
+                        }
+                        moved = true;
+                    }
+                }
+                return moved;
+            }
+
+            mergeRow(row) {
+                // Remove zeros
+                const filtered = row.filter(cell => cell !== 0);
+                
+                // Merge adjacent equal tiles
+                for (let i = 0; i < filtered.length - 1; i++) {
+                    if (filtered[i] === filtered[i + 1]) {
+                        filtered[i] *= 2;
+                        this.score += filtered[i];
+                        filtered.splice(i + 1, 1);
+                    }
+                }
+                
+                // Pad with zeros
+                while (filtered.length < 4) {
+                    filtered.push(0);
+                }
+                
+                return filtered;
+            }
+
+            addRandomTile() {
+                const emptyCells = [];
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        if (this.board[row][col] === 0) {
+                            emptyCells.push({row, col});
+                        }
+                    }
+                }
+                
+                if (emptyCells.length > 0) {
+                    const randomCell = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                    this.board[randomCell.row][randomCell.col] = Math.random() < 0.9 ? 2 : 4;
+                }
+            }
+
+            checkGameState() {
+                // Check for win
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        if (this.board[row][col] === 2048 && !this.gameWon) {
+                            this.gameWon = true;
+                            this.showOverlay('You Win!', 'Congratulations! You reached 2048!', 'Continue Playing');
+                        }
+                    }
+                }
+
+                // Check for game over
+                if (this.isGameOver()) {
+                    this.gameOver = true;
+                    this.showOverlay('Game Over!', 'No more moves possible. Try again!', 'New Game');
+                }
+            }
+
+            isGameOver() {
+                // Check if there are any empty cells
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        if (this.board[row][col] === 0) {
+                            return false;
+                        }
+                    }
+                }
+
+                // Check if any adjacent tiles can merge
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        const current = this.board[row][col];
+                        
+                        // Check right neighbor
+                        if (col < 3 && this.board[row][col + 1] === current) {
+                            return false;
+                        }
+                        
+                        // Check bottom neighbor
+                        if (row < 3 && this.board[row + 1][col] === current) {
+                            return false;
+                        }
+                    }
+                }
+                
+                return true;
+            }
+
+            updateDisplay() {
+                const tilesContainer = document.getElementById('tilesContainer');
+                tilesContainer.innerHTML = '';
+                this.tileElements.clear();
+                
+                for (let row = 0; row < 4; row++) {
+                    for (let col = 0; col < 4; col++) {
+                        const value = this.board[row][col];
+                        if (value !== 0) {
+                            const tile = document.createElement('div');
+                            const tileKey = ${row}-${col}-${value};
+                            
+                            tile.className = tile w-16 h-16 md:w-20 md:h-20 rounded-lg flex items-center justify-center text-2xl font-bold shadow-md;
+                            tile.style.left = ${col * 25}%;
+                            tile.style.top = ${row * 25}%;
+                            tile.style.width = 'calc(25% - 0.75rem)';
+                            tile.style.height = 'calc(25% - 0.75rem)';
+                            
+                            tile.className +=  bg-tile-${value} text-gray-800;
+                            tile.textContent = value;
+                            
+                            // Add animation classes for new tiles
+                            if (this.previousBoard.length === 0 || 
+                                (row < 4 && col < 4 && this.previousBoard[row][col] !== value)) {
+                                tile.classList.add('tile-new');
+                            }
+                            
+                            tilesContainer.appendChild(tile);
+                            this.tileElements.set(tileKey, tile);
+                        }
+                    }
+                }
+                
+                // Update score
+                document.getElementById('score').textContent = this.score;
+                
+                // Clear animation classes after animation completes
+                setTimeout(() => {
+                    this.tileElements.forEach(tile => {
+                        tile.classList.remove('tile-moving');
+                        tile.style.transform = '';
+                    });
+                }, 150);
+            }
+
+            showOverlay(title, message, buttonText) {
+                const overlay = document.getElementById('gameOverlay');
+                const overlayTitle = document.getElementById('overlayTitle');
+                const overlayMessage = document.getElementById('overlayMessage');
+                const overlayBtn = document.getElementById('overlayBtn');
+                
+                overlayTitle.textContent = title;
+                overlayMessage.textContent = message;
+                overlayBtn.textContent = buttonText;
+                overlay.classList.remove('hidden');
+            }
+
+            hideOverlay() {
+                document.getElementById('gameOverlay').classList.add('hidden');
+            }
+        }
+
+        // Initialize the game when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new Game2048();
+        });
+    </script>
 </body>
 </html>
