@@ -1,0 +1,172 @@
+<!DOCTYPE html> <!-- Declares the document as HTML5 -->
+<html lang="en"> <!-- Root element, sets language to English -->
+<head>
+    <meta charset="UTF-8"> <!-- Sets character encoding -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Makes page responsive on mobile -->
+    <title>2048 Game</title> <!-- Text shown on browser tab -->
+
+    <!-- Load Tailwind CSS from CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Import Inter font from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Customize Tailwind config (colors, fonts) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'], // Set Inter as a custom font
+                    },
+                    colors: { // Define tile colors by value
+                        'tile-2': '#eee4da',
+                        'tile-4': '#ede0c8',
+                        'tile-8': '#f2b179',
+                        'tile-16': '#f59563',
+                        'tile-32': '#f67c5f',
+                        'tile-64': '#f65e3b',
+                        'tile-128': '#edcf72',
+                        'tile-256': '#edcc61',
+                        'tile-512': '#edc850',
+                        'tile-1024': '#edc53f',
+                        'tile-2048': '#edc22e',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom styles for animations and layout -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif; /* Apply Inter font */
+        }
+        .tile {
+            transition: all 0.15s ease-in-out;
+            position: absolute; /* Allows tile movement */
+        }
+        .tile-new { animation: tileNew 0.2s ease-in-out; } /* Animation for new tile */
+        .tile-merged { animation: tileMerged 0.2s ease-in-out; } /* Animation for merged tile */
+        .tile-moving {
+            transition: all 0.15s ease-in-out;
+            z-index: 10;
+        }
+        @keyframes tileNew {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        @keyframes tileMerged {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        .game-overlay {
+            backdrop-filter: blur(4px); /* Blur background when overlay appears */
+        }
+        .game-board-container {
+            position: relative; /* For absolutely-positioned tiles */
+        }
+        .game-board-grid {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); /* 4-column grid */
+            gap: 1rem; /* Space between grid cells */
+        }
+        .grid-cell {
+            width: 4rem;
+            height: 4rem;
+            background-color: #cdc1b4; /* Empty cell color */
+            border-radius: 0.5rem;
+        }
+        @media (min-width: 768px) {
+            .grid-cell {
+                width: 5rem;
+                height: 5rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-inter">
+    <div class="container mx-auto px-4 py-8 max-w-md">
+        <!-- Main container for header and game board -->
+
+        <!-- Header with title and score -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">2048</h1> <!-- Main game title -->
+            <p class="text-gray-600 mb-4">Join the tiles, get to 2048!</p>
+
+            <!-- Score and New Game Button -->
+            <div class="flex justify-between items-center mb-6">
+                <div class="bg-white rounded-lg p-4 shadow-md">
+                    <div class="text-sm text-gray-600">Score</div>
+                    <div id="score" class="text-2xl font-bold text-gray-800">0</div>
+                </div>
+                <button id="newGameBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-colors">
+                    New Game
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Board Area -->
+        <div class="relative">
+            <div class="bg-gray-300 rounded-lg p-4 shadow-lg">
+                <div class="game-board-container">
+                    <!-- Background cells (static) -->
+                    <div class="game-board-grid">
+                        <!-- 16 empty grid cells -->
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                    </div>
+
+                    <!-- Tiles will appear here dynamically -->
+                    <div id="tilesContainer" class="absolute inset-0">
+                        <!-- JS inserts .tile divs here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overlay shown on Win/Game Over -->
+            <div id="gameOverlay" class="hidden absolute inset-0 bg-black bg-opacity-50 game-overlay rounded-lg flex items-center justify-center">
+                <div class="bg-white rounded-lg p-8 text-center shadow-xl">
+                    <h2 id="overlayTitle" class="text-2xl font-bold mb-4"></h2> <!-- Title: Win/Game Over -->
+                    <p id="overlayMessage" class="text-gray-600 mb-6"></p> <!-- Message -->
+                    <button id="overlayBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md transition-colors">
+                        New Game
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions Section -->
+        <div class="mt-8 bg-white rounded-lg p-6 shadow-md">
+            <h3 class="text-lg font-semibold text-gray-800 mb-3">How to Play</h3>
+            <ul class="text-gray-600 space-y-2 text-sm">
+                <li>• Use <strong>arrow keys</strong> or <strong>swipe</strong> to move tiles</li>
+                <li>• When two tiles with the same number touch, they <strong>merge into one</strong></li>
+                <li>• Get a <strong>2048</strong> tile to win!</li>
+                <li>• Game ends when no more moves are possible</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- JavaScript code is at the end to allow page to load first -->
+    <!-- Game logic is inside the script block below -->
+    <!-- It creates the game, adds tiles, handles movement, detects win/loss, and manages animation -->
+</body>
+</html>
