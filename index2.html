@@ -41,15 +41,18 @@
         </ul>
     </div>
 
-    <script>
-    // --- 2048 Game Logic ---
-    // The board is a 2D array (4x4)
-    let board = [];
-    let score = 0;
-    let gameOver = false;
-    let gameWon = false;
+    <!-- Leaderboard Section -->
+    <div class="mt-8 bg-white rounded-lg p-6 shadow-md max-w-md w-full">
+        <h2 class="text-lg font-semibold mb-2">Leaderboard (Top 5)</h2>
+        <ul id="leaderboard" class="text-gray-700 text-base list-decimal pl-5 mb-4"></ul>
+        <form id="scoreForm" class="hidden flex flex-col gap-2">
+            <input id="playerName" type="text" maxlength="20" placeholder="Your name" class="border rounded px-2 py-1" required />
+            <button type="submit" class="bg-orange-500 text-white rounded px-3 py-1">Submit Score</button>
+        </form>
+    </div>
 
-    // Colors for different tile values
+    <script>
+    // --- Tile color mapping and Tailwind config ---
     const tileColors = {
         0: 'bg-gray-200',
         2: 'bg-tile-2',
@@ -64,8 +67,6 @@
         1024: 'bg-tile-1024',
         2048: 'bg-tile-2048',
     };
-
-    // Add custom Tailwind colors for tiles
     tailwind.config = {
         theme: {
             extend: {
@@ -86,71 +87,103 @@
         }
     };
 
-    // Initialize the game
+    // Start a new game by resetting the board and state
     function newGame() {
+        // Create a 4x4 grid filled with zeros
         board = Array(4).fill().map(() => Array(4).fill(0));
         score = 0;
         gameOver = false;
         gameWon = false;
+
+        // Place two random tiles (2 or 4) on the board to start
         addRandomTile();
         addRandomTile();
+
+        // Update the visual board and clear any win/lose messages
         updateBoard();
         showMessage('');
     }
 
-    // Add a random tile (2 or 4) to an empty cell
+    // Add a new tile (2 or 4) in a random empty cell
     function addRandomTile() {
         let empty = [];
+
+        // Find all empty cells (value === 0)
         for (let r = 0; r < 4; r++) {
             for (let c = 0; c < 4; c++) {
                 if (board[r][c] === 0) empty.push([r, c]);
             }
         }
+
+        // If there are no empty cells, do nothing
         if (empty.length === 0) return;
+
+        // Pick a random empty cell and place a 2 or 4 there
         let [r, c] = empty[Math.floor(Math.random() * empty.length)];
         board[r][c] = Math.random() < 0.9 ? 2 : 4;
     }
 
-    // Update the board display
+    // Update the HTML display of the board and score
     function updateBoard() {
         const boardDiv = document.getElementById('board');
-        boardDiv.innerHTML = '';
+        boardDiv.innerHTML = ''; // Clear old tiles
+
         for (let r = 0; r < 4; r++) {
             const rowDiv = document.createElement('div');
             rowDiv.className = 'flex mb-2 last:mb-0';
+
             for (let c = 0; c < 4; c++) {
                 const val = board[r][c];
+
+                // Create each tile with correct style and number
                 const tile = document.createElement('div');
                 tile.className = `tile w-16 h-16 flex items-center justify-center rounded-lg font-bold text-xl mr-2 last:mr-0 ${tileColors[val] || 'bg-gray-400'}`;
                 tile.textContent = val === 0 ? '' : val;
+
                 rowDiv.appendChild(tile);
             }
+
             boardDiv.appendChild(rowDiv);
         }
+
+        // Update the score display
         document.getElementById('score').textContent = score;
     }
 
-    // Move and merge tiles in a given direction
+    // Move and merge tiles based on direction
     function move(direction) {
+        // If game is already over or won, stop
         if (gameOver || gameWon) return;
+
         let moved = false;
+
+        // Track which cells have already merged (so they can't merge again this move)
         let merged = Array(4).fill().map(() => Array(4).fill(false));
+
+        // Helper function to slide a tile in a given direction
         function slide(row, col, dr, dc) {
             let r = row, c = col;
             while (true) {
                 let nr = r + dr, nc = c + dc;
+
+                // Stop if we're outside the grid
                 if (nr < 0 || nr > 3 || nc < 0 || nc > 3) break;
+
                 if (board[nr][nc] === 0) {
+                    // Move tile into empty space
                     board[nr][nc] = board[r][c];
                     board[r][c] = 0;
                     r = nr; c = nc;
                     moved = true;
                 } else if (board[nr][nc] === board[r][c] && !merged[nr][nc] && !merged[r][c]) {
+                    // Merge two equal tiles
                     board[nr][nc] *= 2;
                     score += board[nr][nc];
                     board[r][c] = 0;
                     merged[nr][nc] = true;
                     moved = true;
+
+                    // Check if we won
                     if (board[nr][nc] === 2048) {
                         gameWon = true;
                         showMessage('You Win!');
@@ -161,7 +194,8 @@
                 }
             }
         }
-        // Order of traversal matters for correct merging
+
+        // Directional movement logic — order matters!
         if (direction === 'left') {
             for (let r = 0; r < 4; r++) for (let c = 1; c < 4; c++) if (board[r][c]) slide(r, c, 0, -1);
         } else if (direction === 'right') {
@@ -171,6 +205,8 @@
         } else if (direction === 'down') {
             for (let c = 0; c < 4; c++) for (let r = 2; r >= 0; r--) if (board[r][c]) slide(r, c, 1, 0);
         }
+
+        // If something moved, add a new tile, update the board, and check for game over
         if (moved) {
             addRandomTile();
             updateBoard();
@@ -181,28 +217,30 @@
         }
     }
 
-    // Check if there are no moves left
+    // Check if there are no moves left — if so, game is over
     function isGameOver() {
         for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
-            if (board[r][c] === 0) return false;
-            if (c < 3 && board[r][c] === board[r][c+1]) return false;
-            if (r < 3 && board[r][c] === board[r+1][c]) return false;
+            if (board[r][c] === 0) return false; // There's an empty cell
+            if (c < 3 && board[r][c] === board[r][c+1]) return false; // Mergeable right
+            if (r < 3 && board[r][c] === board[r+1][c]) return false; // Mergeable down
         }
         return true;
     }
 
-    // Show a message (win/lose)
+    // Show a win/lose message or hide it if blank
     function showMessage(msg) {
         const msgDiv = document.getElementById('message');
         if (msg) {
             msgDiv.textContent = msg;
             msgDiv.classList.remove('hidden');
+            showScoreForm();
         } else {
             msgDiv.classList.add('hidden');
+            hideScoreForm();
         }
     }
 
-    // Keyboard controls
+    // Handle arrow key inputs
     document.addEventListener('keydown', function(e) {
         if (e.key === 'ArrowLeft') move('left');
         else if (e.key === 'ArrowRight') move('right');
@@ -210,7 +248,7 @@
         else if (e.key === 'ArrowDown') move('down');
     });
 
-    // Touch controls for mobile
+    // Handle swipe gestures on touch devices
     let startX, startY;
     document.getElementById('board').addEventListener('touchstart', function(e) {
         if (e.touches.length === 1) {
@@ -222,6 +260,8 @@
         if (e.changedTouches.length === 1) {
             let dx = e.changedTouches[0].clientX - startX;
             let dy = e.changedTouches[0].clientY - startY;
+
+            // Determine swipe direction
             if (Math.abs(dx) > Math.abs(dy)) {
                 if (dx > 30) move('right');
                 else if (dx < -30) move('left');
@@ -232,11 +272,55 @@
         }
     });
 
-    // New Game button
+    // Restart game when New Game button is clicked
     document.getElementById('newGameBtn').onclick = newGame;
 
-    // Start the game
+    // Automatically start a new game on page load
     newGame();
+
+    // --- Leaderboard Integration ---
+    // Fetch and display top 5 scores
+    function loadLeaderboard() {
+        fetch('http://localhost:3000/highscores')
+            .then(res => res.json())
+            .then(data => {
+                const list = document.getElementById('leaderboard');
+                list.innerHTML = '';
+                data.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.textContent = `${entry.name}: ${entry.score}`;
+                    list.appendChild(li);
+                });
+            });
+    }
+
+    // Show score submission form if game is over or won
+    function showScoreForm() {
+        const form = document.getElementById('scoreForm');
+        form.classList.remove('hidden');
+        document.getElementById('playerName').focus();
+    }
+    function hideScoreForm() {
+        document.getElementById('scoreForm').classList.add('hidden');
+    }
+
+    // Handle score form submission
+    document.getElementById('scoreForm').onsubmit = function(e) {
+        e.preventDefault();
+        const name = document.getElementById('playerName').value.trim();
+        if (!name) return;
+        fetch('http://localhost:3000/highscores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, score })
+        }).then(() => {
+            hideScoreForm();
+            loadLeaderboard();
+        });
+    };
+
+    // Load leaderboard on page load
+    loadLeaderboard();
     </script>
 </body>
 </html> 

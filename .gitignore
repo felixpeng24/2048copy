@@ -1,0 +1,11 @@
+# Node.js dependencies
+my-backend/node_modules/
+
+# Firebase credentials (keep secret!)
+my-backend/firebase-key.json
+
+# MacOS system files
+.DS_Store
+
+# VSCode settings
+.vscode/ 
